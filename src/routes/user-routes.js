@@ -1,47 +1,51 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
-import validator from "validator";
+import { users } from "../data/users.js";
+import { authUser, createUser, verifyToken } from "../middlewares/user-middleware.js";
+import multer from "multer";
+import path from "node:path";
+import jwt from "jsonwebtoken";
 
-const users = [];
+const storage = multer.diskStorage({
+  destination: "photos/",
+  filename: (req, file, cb) => {
+    cb(null, req.body.login + path.extname(file.originalname));
+  },
+});
+const configMulter = multer({ storage: storage });
 
 const userRoutes = Router();
 
 userRoutes
   .route("/signup")
   .get((req, res) => res.render("form_register"))
-  .post(async (req, res) => {
-    
-    const { login, email, password } = req.body;
-    
-    if (!validator.isEmail(email)) {
-      return res.status(400).send("Некоректний email");
-    }
-    if (!validator.isLength(password, { min: 6 })) {
-      return res.status(400).send("Пароль повинен бути мінімум 6 символів");
-    }
-    const userExists = users.some((user) => user.email === email);
-    if (userExists) {
-      return res.status(400).send("Користувач з таким email вже зареєстрований");
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    users.push({ login, email, password: hashedPassword });
-    // res.cookie("user", req.body.login, {
-    //   httpOnly: true,
-    //   maxAge: 2000000,
-    // });
-    req.session.user = { login,  email };
+  .post(configMulter.single("file"), createUser, (req, res) => {
+    const token = jwt.sign({ 
+      login: req.body.login, 
+      email: req.body.email 
+    }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    res.cookie("jwt", token, { httpOnly: true, maxAge: 3600000 });
     res.redirect("/");
   });
 
-userRoutes.get("/signin", (req, res) => res.render("form_auth"));
-
-userRoutes.get("/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).send("Помилка при виході");
-    }
+userRoutes
+  .route("/signin")
+  .get((req, res) => res.render("form_auth"))
+  .post(authUser, (req, res) => {
+    const token = jwt.sign({ login: req.body.login, email: req.body.email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    res.cookie("jwt", token, { httpOnly: true, maxAge: 3600000 });
     res.redirect("/");
   });
+
+userRoutes
+  .get("/logout", (req, res) => {
+    res.clearCookie("jwt");
+    res.redirect("/");
+  });
+
+userRoutes.get("/list", verifyToken, (req, res) => {
+  res.render("user_list", { users });
 });
 
 export default userRoutes;

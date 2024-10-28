@@ -1,7 +1,6 @@
 import express from "express";
 import exphbs from "express-handlebars";
 import cookieParser from "cookie-parser";
-import session from "express-session";
 import "dotenv/config";
 import path from "node:path";
 import siteRoutes from "./routes/site-routes.js";
@@ -18,14 +17,9 @@ const hbs = exphbs.create({
 //#endregion
 
 const app = express();
+app.use(express.static("photos"));
 app.use(cookieParser());
-app.use(
-  session({
-    secret: process.env.SESSION_KEY,
-    resave: false,
-    saveUninitialized: true,
-  })
-);
+
 app.use(checkUser);
 
 //#region handlebars
