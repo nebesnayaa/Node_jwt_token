@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { users } from "../data/users.js";
-import { authUser, createUser, verifyToken } from "../middlewares/user-middleware.js";
+import { authUser, createUser, feedbackUser, verifyToken } from "../middlewares/user-middleware.js";
 import multer from "multer";
 import path from "node:path";
 import jwt from "jsonwebtoken";
@@ -47,5 +47,14 @@ userRoutes
 userRoutes.get("/list", verifyToken, (req, res) => {
   res.render("user_list", { users });
 });
+
+userRoutes
+  .route("/feedback")
+  .get((req, res) => {
+    res.render("form_feedback");
+  })
+  .post(feedbackUser, (req, res) => {
+    res.status(400).redirect("/");
+  });
 
 export default userRoutes;

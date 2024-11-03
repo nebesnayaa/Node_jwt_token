@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import path from "node:path";
 import validator from "validator";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 
 export const checkUser = (req, res, next) => {
   const token = req.cookies.jwt;
@@ -73,3 +74,77 @@ export const authUser = (req, res, next) => {
     res.status(400).redirect("/");
   }
 };
+
+export const feedbackUser = (req, res, next) => {
+  if(req.body && req.body.email && req.body.subject && req.body.message){
+    const { email, subject, message } = req.body;
+    const mailOpt = {
+      from: "Nebesna Olexandra <s.nebesnaya5@gmail.com>",
+      to: email,
+      subject: subject,
+      text: message,
+    };
+
+    const trans = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      auth: {
+        user: "s.nebesnaya5@gmail.com",
+        pass: "xusa cwsk jcsm bzvd",
+      },
+      tls: {
+        rejectUnauthorized: true,
+        minVersion: "TLSv1.2",
+      },
+    });
+
+    trans.sendMail(mailOpt, (err, info) => {
+      console.log(err, info);
+      if (err) {
+        console.log(err);
+        res.status(400).redirect("/");
+      } else {
+        console.log(info);
+        res.status(201).redirect("/");
+      }
+      return;
+    });
+  }
+};
+
+export const sendNews = (req, res, next) => {
+  for (let user of users) 
+    {
+      const mailOpt = {
+        from: "Nebesna Olexandra <s.nebesnaya5@gmail.com>",
+        to: user.email,
+        subject: "Свіжі новини від нашої компанії!",
+        text: "Привіт! Ось останні новини: ми запустили нову функцію, яка допоможе вам працювати ще ефективніше!",
+      };
+  
+      const trans = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        auth: {
+          user: "s.nebesnaya5@gmail.com",
+          pass: "xusa cwsk jcsm bzvd",
+        },
+        tls: {
+          rejectUnauthorized: true,
+          minVersion: "TLSv1.2",
+        },
+      });
+    
+      trans.sendMail(mailOpt, (err, info) => {
+        if (err) {
+          console.log(err);
+          res.status(400).redirect("/");
+        } else {
+          // console.log(info);
+          console.log(`Новина надіслана користувачу: ${user.email}`);
+          res.status(201).redirect("/");
+        }
+        return;
+      });
+    }
+}
