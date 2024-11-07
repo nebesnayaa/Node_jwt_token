@@ -1,9 +1,9 @@
-import { users } from "../data/users.js";
 import bcrypt from "bcrypt";
 import path from "node:path";
 import validator from "validator";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import pool from "../config/db.js";
 
 export const checkUser = (req, res, next) => {
   const token = req.cookies.jwt;
@@ -28,50 +28,87 @@ export const verifyToken = (req, res, next) => {
   });
 };
 
-export const createUser = (req, res, next) => {
-  if(!req.body.login || !req.body.email || !req.body.password || !req.body.confirm_password ){
+export const createUser = async (req, res, next) => {
+  const { login, email, password, confirm_password } = req.body;
+
+  if(!login || !email || !password || !confirm_password ){
     return res.status(400).send("Всі поля повинні бути заповнені.");      
   }
-  if(!validator.isEmail(req.body.email)) {
+  if(!validator.isEmail(email)) {
     return res.status(400).send("Некоректний email");
   }
-  if (!validator.isLength(req.body.password, { min: 6 })) {
+  if (!validator.isLength(password, { min: 6 })) {
     return res.status(400).send("Пароль повинен бути мінімум 6 символів");
   }
-  if(req.body.password !== req.body.confirm_password ){
+  if(password !== confirm_password ){
     return res.status(400).send("Пароль та повторний пароль не співпадають");      
   }
   if (!req.file){
     return res.status(400).send("Виберіть фото профілю.");      
   }
  
-  const userExists = users.some((user) => user.email === req.body.email);
-  if (userExists) {
-    return res.status(400).send("Користувач з таким email вже зареєстрований");
-  }
-  else{
-    const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync(req.body.password, salt);
+  // const userExists = users.some((user) => user.email === req.body.email);
+  // if (userExists) {
+  //   return res.status(400).send("Користувач з таким email вже зареєстрований");
+  // }
+  // else{
+  //   const salt = bcrypt.genSaltSync(10);
+  //   const hash = bcrypt.hashSync(req.body.password, salt);
 
-    users.push({
-      id: users.length + 1,
-      login: req.body.login,
-      email: req.body.email,
-      password: hash,
-      image: req.body.login + path.extname(req.file.originalname),
-    });
-  }
-  next();
+  //   users.push({
+  //     id: users.length + 1,
+  //     login: req.body.login,
+  //     email: req.body.email,
+  //     password: hash,
+  //     image: req.body.login + path.extname(req.file.originalname),
+  //   });
+  // }
+  // next();
+
+  try {
+    const [existingUser] = await pool.query('SELECT * FROM Users WHERE email = ?', [email]);
+    if (existingUser.length) {
+        return res.status(400).send("Користувач з таким email вже зареєстрований");
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const hash = bcrypt.hashSync(password, salt);
+
+    const imagePath = login + path.extname(req.file.originalname);
+    
+    await pool.query(
+      'INSERT INTO Users (login, email, password, image) VALUES (?, ?, ?, ?)', 
+      [login, email, hash, imagePath]);
+
+    next();
+} catch (error) {
+    console.error(error);
+    res.status(500).send("Виникла помилка на сервері");
+}
 };
 
-export const authUser = (req, res, next) => {
+export const authUser = async (req, res, next) => {
   const { login, password } = req.body;
-  const user = users.find((el) => el.login == login);
-  if (user && bcrypt.compareSync(password, user.password)) {
-    req.body.email = user.email;
-    next();
-  } else {
-    res.status(400).redirect("/");
+  // const user = users.find((el) => el.login == login);
+  // if (user && bcrypt.compareSync(password, user.password)) {
+  //   req.body.email = user.email;
+  //   next();
+  // } else {
+  //   res.status(400).redirect("/");
+  // }
+  try {
+    const [rows] = await pool.query('SELECT * FROM Users WHERE login = ?', [login]);
+    const user = rows[0];
+
+    if (user && bcrypt.compareSync(password, user.password)) {
+      req.body.email = user.email;
+      next();
+    } else {
+      res.status(400).redirect("/");
+    }
+  } catch (error) {
+      console.error(error);
+      res.status(500).send("Виникла помилка на сервері");
   }
 };
 
